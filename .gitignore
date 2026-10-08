@@ -1,0 +1,28 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# outputs
+experiments/
+wandb/
+*.log
+
+# data and model weights (not distributed; see scripts/prepare_data.md)
+dataset/*/continual_data.json
+dataset/tacred/
+dataset/fewrel/
+dataset/banking77/
+dataset/clinc150/
+data_vision/
+hf_models/
+Qwen3-0.6B/
+Qwen3-4B/
+Qwen3-8B/
+Llama-3.2-1B/
+Llama-3.2-3B/
+Llama-3.1-8B/
+*.npy
+*.pt
+*.pth
+*.safetensors

@@ -1,0 +1,17 @@
+il_mode: CIL
+dataset: clinc150_task15
+classification_type: sentence-level
+backbone_type: generative
+backbone_extract_token: last_token
+prompt_type: auto
+method: CODECL
+classifier: None
+classifier_lr: 1e-3
+PEFT_type: None
+is_replay: false
+batch_size: 8
+lr: 2e-5
+weight_decay: 5e-4
+training_epochs: 3
+pdr_no_liger: true
+codecl_K: 0
