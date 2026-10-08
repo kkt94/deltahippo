@@ -220,7 +220,7 @@ PyTorch kernels (off by default).
 ```
 @article{deltahippo,
   title  = {Hippocampal Consolidation without Replay for Continual Learning of Fully Fine-tuned Networks},
-  author = {Kim, Keuntae},
+  author = {Kim, Keuntae and Choi, Yong Suk},
   year   = {2026}
 }
 ```
