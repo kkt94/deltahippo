@@ -8,7 +8,7 @@
 #   * Qwen3-0.6B, Llama-3.2-1B, Llama-3.2-3B: configs/llm/BENCH.yaml
 #   * Qwen3-4B (widest synapse-group input > 9,000): configs/llm/BENCH_wide.yaml (fp64 orthonormal basis)
 #   * Qwen3-8B, Llama-3.1-8B: configs/llm/BENCH_8b.yaml (fp64 orthonormal basis + gradient checkpointing)
-#   The width rule (hippo_widthref: 2560) is in every configuration; it only acts on models wider than 2560.
+#   The width rule (hippo_widthref: 2560) is in the 8B configurations only (*_8b.yaml).
 set -e
 cd "$(dirname "$0")/.."
 BENCH=$1; MODEL=$2; SEED=${3:-42}

@@ -171,9 +171,9 @@ The method is the same for every decoder model; three rules depend only on the a
 - **Relative step.** Every trunk matrix (q/k/v/o, gate/up/down) steps with `lr x min(1, rms(W) / mean rms)`, the mean
   taken over all trunk matrices of the model (`models/HippoLite.py`, `build_optimizer`). The vision and encoder
   learners apply the same rule to every linear / convolutional map.
-- **Width rule** (`hippo_widthref: 2560`, in every LLM configuration). The matrices of a model wider than the
-  reference width step by `2560 / hidden_size` (Llama-3.2-3B: 0.83; Qwen3-8B and Llama-3.1-8B: 0.625); models of width
-  2560 or less are unaffected. Vector-like parameters (input table, norm gains) keep the base learning rate.
+- **Width rule** (`hippo_widthref: 2560`, in the 8B configurations only). The matrices of Qwen3-8B and Llama-3.1-8B
+  step by `2560 / hidden_size` = 0.625; the models up to 4B, including Llama-3.2-3B, use no width scaling. Vector-like
+  parameters (input table, norm gains) keep the base learning rate.
 - **fp64 orthonormal basis** (`hippo_orthobasis: true`, the `_wide` and `_8b` configurations). For models whose widest
   synapse-group input exceeds 9,000 (the MLP down-projection input of Qwen3-4B, 9,728; Qwen3-8B, 12,288;
   Llama-3.1-8B, 14,336) the held span and the class-pattern columns are kept as one fp64 QR basis with a
@@ -203,7 +203,7 @@ Final AA (%) reported in the paper for DeltaHippo:
 | Qwen3-4B | 71.61 | 76.71 | 85.33 | 94.98 |
 | Llama-3.2-3B | 73.47 | 80.63 | 87.27 | 92.18 |
 | Qwen3-8B | 80.21 | 78.87 | 90.78 | 95.27 |
-| Llama-3.1-8B | 77.75 | 80.96 | 87.53 | 94.82 |
+| Llama-3.1-8B | 77.75 | 80.96 | 87.53 | 95.16 |
 | BERT-base (3 seeds) | 68.71 ± 1.90 | 64.38 ± 2.48 | 86.41 ± 0.43 | 90.18 ± 0.65 |
 | RoBERTa-base (3 seeds) | 68.64 ± 0.96 | 67.90 ± 3.60 | 87.67 ± 0.44 | 91.02 ± 0.47 |
 

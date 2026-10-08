@@ -13,5 +13,4 @@ batch_size: 8
 lr: 2e-5
 weight_decay: 5e-4
 training_epochs: 3
-hippo_widthref: 2560
 hippo_orthobasis: true
