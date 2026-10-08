@@ -90,8 +90,6 @@ The encoders are read from `./hf_models/<name>` when that directory exists, othe
 ## Running
 
 All scripts run from any directory, write the log to `experiments/logs/<run>.log` and print the last result line.
-The decoder LLM table reports one run per cell; the encoder and vision tables report the mean over three seeds
-(the vision runs used seeds 1993, 42 and 3).
 
 ### Decoder LLMs (Table 1)
 
@@ -204,10 +202,10 @@ Final AA (%) reported in the paper for DeltaHippo:
 | Llama-3.2-3B | 73.47 | 80.63 | 87.27 | 92.18 |
 | Qwen3-8B | 80.21 | 78.87 | 90.78 | 95.27 |
 | Llama-3.1-8B | 77.75 | 80.96 | 87.53 | 95.16 |
-| BERT-base (3 seeds) | 68.71 ± 1.90 | 64.38 ± 2.48 | 86.41 ± 0.43 | 90.18 ± 0.65 |
-| RoBERTa-base (3 seeds) | 68.64 ± 0.96 | 67.90 ± 3.60 | 87.67 ± 0.44 | 91.02 ± 0.47 |
+| BERT-base | 68.71 ± 1.90 | 64.38 ± 2.48 | 86.41 ± 0.43 | 90.18 ± 0.65 |
+| RoBERTa-base | 68.64 ± 0.96 | 67.90 ± 3.60 | 87.67 ± 0.44 | 91.02 ± 0.47 |
 
-| Model (3 seeds) | CIFAR-100 | ImageNet-R |
+| Model | CIFAR-100 | ImageNet-R |
 |---|---|---|
 | ViT-B/16 | 88.12 ± 0.15 | 64.34 ± 0.45 |
 | ResNet-50 | 68.65 ± 0.98 | 61.16 ± 0.61 |
