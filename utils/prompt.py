@@ -10,6 +10,7 @@ Dataset2Prompt = {
     'fewrel_task8': 'relation_classification_state',
     'tacred_task8': 'relation_classification_state',
     'tacred_task8_perm1': 'relation_classification_state',
+    'tacred_task8_perm2': 'relation_classification_state',
     'tacred_task8_rev': 'relation_classification_state',
     # single-task (joint upper bound) variants -- same prompt as their sequential form
     'tacred_task1': 'relation_classification_state',
@@ -29,6 +30,7 @@ Dataset2PromptTuningInitText = {
     'fewrel_task8': 'Classify the relationship in this sentence:',
     'tacred_task8': 'Classify the relationship in this sentence:',
     'tacred_task8_perm1': 'Classify the relationship in this sentence:',
+    'tacred_task8_perm2': 'Classify the relationship in this sentence:',
     'tacred_task8_rev': 'Classify the relationship in this sentence:',
     'tacred_task1': 'Classify the relationship in this sentence:',
     'clinc150_task1': 'Classify the intent of this sentence:',

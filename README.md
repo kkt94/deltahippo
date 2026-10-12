@@ -26,10 +26,11 @@ models/                 learners: HippoLite (LLMs), HippoLiteEnc (encoders), Scu
 utils/                  framework (data, prompts, backbones, evaluation, metrics) and the method modules
                         hippo_lite.py (LLMs), hippo_enc.py (encoders), hippo_vis.py (vision)
 tools/                  vision runner (vision_hippo.py), its diagnostics (vision_diag.py), ImageNet-R cache builder
-configs/llm/            DeltaHippo, decoder LLMs (BENCH.yaml, BENCH_wide.yaml, BENCH_8b.yaml)
+configs/llm/            DeltaHippo, decoder LLMs (BENCH.yaml, BENCH_wide.yaml, BENCH_8b.yaml, tacred_order{1,2}.yaml)
 configs/encoder/        DeltaHippo, BERT / RoBERTa
 configs/baselines/      Sculpting Subspaces (sculpt_*.yaml) and CODE-CL (codecl_*.yaml)
-dataset/                class-incremental split definitions (continual_config.json); the data itself is not shipped
+dataset/                class-incremental split definitions (continual_config.json), including the two further
+                        TACRED class orders; the data itself is not shipped
 scripts/                run scripts and data preparation notes
 ```
 
@@ -49,15 +50,18 @@ pip install flash-attn==2.8.3 --no-build-isolation      # optional, see below
 When `flash-attn` is importable, the Llama and Qwen3-4B/8B backbones are loaded with `flash_attention_2`, otherwise
 with PyTorch SDPA. The reported decoder runs used flash-attn.
 
-GPU memory (peak, training / sleep): about 23 GB for Llama-3.2-1B and 140-145 GB for the 8B models (gradient
-checkpointing on). All runs fit a single GPU; no multi-GPU setup is needed.
+GPU memory (peak, training / sleep, batch 32): about 27 GB for Qwen3-0.6B and Llama-3.2-1B, 71-73 GB for
+Llama-3.2-3B and Qwen3-4B, and 146-157 GB for the 8B models (gradient checkpointing on for Qwen3-4B and the 8B
+models). Every run uses a single GPU: the reported 8B runs used one NVIDIA B200, all other runs one NVIDIA H100 80GB.
 
 ## Data
 
 No data are distributed. See [`scripts/prepare_data.md`](scripts/prepare_data.md) for the sources and the expected
 layout (`dataset/<name>/continual_config.json` + `continual_data.json`; `data_vision/` for CIFAR-100 and ImageNet-R).
 The text splits follow Zheng, Qiu & Ma (2024): TACRED 8 tasks x 5 relations, FewRel 8 x 10, Banking77 7 x 11,
-CLINC150 15 x 10. Vision: CIFAR-100 10 x 10, ImageNet-R 10 x 20.
+CLINC150 15 x 10. Vision: CIFAR-100 10 x 10, ImageNet-R 10 x 20. Two further fixed random orders of the 40 TACRED
+relations (`dataset/tacred_task8_perm1`, `dataset/tacred_task8_perm2`) are used for the class-order check; their data
+files are built from the TACRED split as described in `scripts/prepare_data.md`.
 
 ## Model weights
 
@@ -95,7 +99,7 @@ All scripts run from any directory, write the log to `experiments/logs/<run>.log
 
 ```
 bash scripts/run_llm.sh BENCH MODEL [SEED]      # BENCH: tacred | fewrel | banking77 | clinc150
-bash scripts/run_llm.sh tacred Llama-3.2-1B 42
+bash scripts/run_llm.sh tacred Llama-3.2-1B 42  # SEED: the reported runs used 42, 11 and 3
 ```
 
 which runs
@@ -107,15 +111,19 @@ python main_CL.py --exp_prefix NAME --cfg configs/llm/<config>.yaml --backbone M
 
 with the configuration chosen by the architecture rules below:
 
-| Models | Configuration |
-|---|---|
-| Qwen3-0.6B, Llama-3.2-1B, Llama-3.2-3B | `configs/llm/BENCH.yaml` |
-| Qwen3-4B | `configs/llm/BENCH_wide.yaml` |
-| Qwen3-8B, Llama-3.1-8B | `configs/llm/BENCH_8b.yaml` |
+| Models | Configuration | Architecture settings |
+|---|---|---|
+| Qwen3-0.6B, Llama-3.2-1B, Llama-3.2-3B | `configs/llm/BENCH.yaml` | none |
+| Qwen3-4B | `configs/llm/BENCH_wide.yaml` | fp64 orthonormal basis, gradient checkpointing |
+| Qwen3-8B, Llama-3.1-8B | `configs/llm/BENCH_8b.yaml` | fp64 orthonormal basis, gradient checkpointing, width rule |
 
 All decoder runs use the same recipe: full fine-tuning of every parameter, AdamW (weight decay 5e-4), learning rate
-2e-5, batch 8, 3 epochs per task, fp32 weights and optimizer state with a bf16 autocast forward, greedy generation
-(at most 10 new tokens) and exact match at test time.
+4e-5 at batch 32 (the batch-8 rate 2e-5 scaled by sqrt(32/8), the square-root batch rule), 3 epochs per task, seeds
+42, 11 and 3, fp32 weights and optimizer state with a bf16 autocast forward, greedy generation (at most 10 new
+tokens) and exact match at test time.
+
+**Class order.** `bash scripts/run_llm.sh tacred_order1 Llama-3.2-1B SEED` (and `tacred_order2`) runs TACRED under
+the two further class orders with otherwise the same configuration as `configs/llm/tacred.yaml`.
 
 ### Text encoders (Extended Data Table 1)
 
@@ -125,14 +133,14 @@ bash scripts/run_encoder.sh tacred bert-base-uncased 42
 ```
 
 (`main_CL.py --cfg configs/encoder/BENCH.yaml --backbone MODEL --classifier Linear --training_epochs 3
---info_per_steps 25 --seed SEED`). Learning rate 2e-5 (heads 1e-3), batch 8, 3 epochs per task, one linear head per
-task on [CLS].
+--info_per_steps 25 --seed SEED`). Learning rate 4e-5 (heads 1e-3) at batch 32 (square-root batch rule, as for the
+decoders), 3 epochs per task, seeds 42, 11 and 3, one linear head per task on [CLS].
 
 ### Vision (Extended Data Table 2)
 
 ```
 bash scripts/run_vision.sh MODEL DATASET [SEED] # MODEL: vit | resnet50   DATASET: cifar100 | imr
-bash scripts/run_vision.sh vit cifar100 1993
+bash scripts/run_vision.sh vit cifar100 1993    # SEED: the reported runs used 1993, 42 and 3
 ```
 
 The flags of the reported runs are:
@@ -140,15 +148,18 @@ The flags of the reported runs are:
 ```
 # ViT-B/16 (backbone lr 3e-5)
 python tools/vision_hippo.py --model vit --dataset {cifar100,imr} --method ours --seed SEED \
+  --tasks 10 --epochs 3 --bs 64 --reserve_gb 0 \
   --fresh_head --oldrow --oldrow_span --fresh_aug --wdfold --pdet --cmpowm --lastcls --tabln --sink --lr_bb 3e-5 \
   --out experiments/vision/NAME
-# ResNet-50 (backbone lr: default 1e-4)
+# ResNet-50 (backbone lr 1e-4)
 python tools/vision_hippo.py --model resnet50 --dataset {cifar100,imr} --method ours --seed SEED \
-  --fresh_head --oldrow --oldrow_span --fresh_aug --wdfold --pdet --cmpowm --no_owm --cmpcons \
+  --tasks 10 --epochs 3 --bs 64 --reserve_gb 0 \
+  --fresh_head --oldrow --oldrow_span --fresh_aug --wdfold --pdet --cmpowm --no_owm --cmpcons --lr_bb 1e-4 \
   --out experiments/vision/NAME
 ```
 
-10 tasks, batch 64, 3 epochs per task, heads lr 1e-3. `--method seq` and `--method seqstar` run the SEQ and SEQ*
+10 tasks, batch 64, 3 epochs per task, backbone learning rate 3e-5 (ViT-B/16) or 1e-4 (ResNet-50), heads 1e-3
+(`--reserve_gb` only pre-reserves allocator memory). `--method seq` and `--method seqstar` run the SEQ and SEQ*
 references with the same protocol.
 
 ### Baselines (Table 1, Qwen3-0.6B and Llama-3.2-1B)
@@ -160,7 +171,8 @@ bash scripts/run_baselines.sh codecl tacred Qwen3-0.6B 42
 
 `sculpt` is Sculpting Subspaces (Nayak et al., 2025) with the fixed rank budget ((i-1)/n of the singular directions
 of each matrix protected at task i of n); `codecl` is CODE-CL (Apolinario, Choudhary & Roy, 2025) in its
-task-agnostic form K = 0. Both use the same optimizer, learning rate, batch and epochs as DeltaHippo.
+task-agnostic form K = 0. Both use the same optimizer, batch (32) and epochs (3 per task) as DeltaHippo with their
+own learning rate (2e-5); DeltaHippo's relative step and width rule are not applied to them.
 
 ## Architecture rules
 
@@ -170,14 +182,15 @@ The method is the same for every decoder model; three rules depend only on the a
   taken over all trunk matrices of the model (`models/HippoLite.py`, `build_optimizer`). The vision and encoder
   learners apply the same rule to every linear / convolutional map.
 - **Width rule** (`hippo_widthref: 2560`, in the 8B configurations only). The matrices of Qwen3-8B and Llama-3.1-8B
-  step by `2560 / hidden_size` = 0.625; the models up to 4B, including Llama-3.2-3B, use no width scaling. Vector-like
-  parameters (input table, norm gains) keep the base learning rate.
+  step by `2560 / hidden_size` = 0.625; the models up to 4B, including Llama-3.2-3B, use no width scaling (the rule
+  scales by `min(1, 2560 / hidden_size)`, so it would be inactive for the models with hidden size up to 2,560 in any
+  case). Vector-like parameters (input table, norm gains) keep the base learning rate.
 - **fp64 orthonormal basis** (`hippo_orthobasis: true`, the `_wide` and `_8b` configurations). For models whose widest
   synapse-group input exceeds 9,000 (the MLP down-projection input of Qwen3-4B, 9,728; Qwen3-8B, 12,288;
   Llama-3.1-8B, 14,336) the held span and the class-pattern columns are kept as one fp64 QR basis with a
   numerical-rank tolerance.
-- The 8B configurations additionally enable gradient checkpointing (`hippo_gradckpt: true`), which changes memory
-  use only.
+- The `_wide` and `_8b` configurations additionally enable gradient checkpointing (`hippo_gradckpt: true`), which
+  changes memory use only.
 
 ## Output
 
@@ -192,26 +205,61 @@ task t, -1 for tasks not yet seen). `Test_Acc_Task_Seen` is the mean test accura
 the last task it is the **final average accuracy (AA)** reported in the paper. Vision runs log one `ROW Tt: ... | AA`
 line per task, a final `FINAL AA` line and write `result.json` to the `--out` directory.
 
-Final AA (%) reported in the paper for DeltaHippo:
+## Results reported in the paper
+
+Final AA (%), mean ± sample standard deviation over three runs (decoders and encoders: seeds 42, 11, 3; vision:
+seeds 1993, 42, 3). Decoder LLMs, DeltaHippo (Table 1):
 
 | Model | TACRED | FewRel | Banking77 | CLINC150 |
 |---|---|---|---|---|
-| Qwen3-0.6B | 73.22 | 71.95 | 85.13 | 89.07 |
-| Llama-3.2-1B | 76.77 | 78.29 | 83.67 | 92.27 |
-| Qwen3-4B | 75.30 | 76.71 | 86.98 | 94.82 |
-| Llama-3.2-3B | 73.47 | 80.63 | 87.27 | 92.18 |
-| Qwen3-8B | 80.21 | 78.87 | 90.78 | 95.27 |
-| Llama-3.1-8B | 77.75 | 81.11 | 87.86 | 95.16 |
-| BERT-base | 68.71 ± 1.90 | 64.38 ± 2.48 | 86.41 ± 0.43 | 90.18 ± 0.65 |
-| RoBERTa-base | 68.64 ± 0.96 | 67.90 ± 3.60 | 87.67 ± 0.44 | 91.02 ± 0.47 |
+| Qwen3-0.6B | 72.46 ± 1.80 | 71.01 ± 1.40 | 82.91 ± 0.41 | 87.13 ± 2.96 |
+| Llama-3.2-1B | 71.58 ± 0.49 | 79.09 ± 2.36 | 82.28 ± 1.13 | 87.04 ± 1.46 |
+| Qwen3-4B | 76.52 ± 1.46 | 76.52 ± 4.48 | 87.46 ± 0.67 | 92.33 ± 0.19 |
+| Llama-3.2-3B | 76.40 ± 1.25 | 81.48 ± 1.60 | 85.84 ± 0.47 | 91.68 ± 0.83 |
+| Qwen3-8B | 76.79 ± 2.14 | 85.95 ± 0.79 | 88.36 ± 0.29 | 93.70 ± 0.77 |
+| Llama-3.1-8B | 77.35 ± 0.69 | 82.92 ± 1.71 | 87.80 ± 0.54 | 92.53 ± 0.69 |
+
+Re-implemented baselines (Table 1):
+
+| Model | Method | TACRED | FewRel | Banking77 | CLINC150 |
+|---|---|---|---|---|---|
+| Qwen3-0.6B | Sculpting Subspaces (fixed budget) | 41.33 ± 0.48 | 40.38 ± 2.23 | 37.33 ± 1.18 | 63.91 ± 3.51 |
+| Qwen3-0.6B | CODE-CL (K = 0) | 40.00 ± 4.39 | 34.78 ± 3.15 | 47.27 ± 3.67 | 70.59 ± 2.45 |
+| Llama-3.2-1B | Sculpting Subspaces (fixed budget) | 26.54 ± 7.56 | 39.72 ± 4.01 | 35.63 ± 3.61 | 57.67 ± 4.55 |
+| Llama-3.2-1B | CODE-CL (K = 0) | 62.10 ± 12.36 | 58.04 ± 2.29 | 56.24 ± 4.96 | 82.87 ± 2.35 |
+
+Text encoders, DeltaHippo (Extended Data Table 1):
+
+| Model | TACRED | FewRel | Banking77 | CLINC150 |
+|---|---|---|---|---|
+| BERT-base | 62.62 ± 0.63 | 66.99 ± 2.94 | 85.02 ± 0.20 | 90.42 ± 0.35 |
+| RoBERTa-base | 53.24 ± 7.89 | 71.55 ± 3.84 | 84.34 ± 1.21 | 91.89 ± 0.36 |
+
+Vision, DeltaHippo (Extended Data Table 2):
 
 | Model | CIFAR-100 | ImageNet-R |
 |---|---|---|
-| ViT-B/16 | 88.12 ± 0.15 | 64.34 ± 0.45 |
-| ResNet-50 | 68.65 ± 0.98 | 61.16 ± 0.61 |
+| ViT-B/16 | 88.21 ± 0.25 | 64.17 ± 0.26 |
+| ResNet-50 | 68.20 ± 0.72 | 61.31 ± 0.62 |
 
-Results can vary slightly with GPU type and library versions. Setting `PDR_DETERMINISTIC=1` requests deterministic
-PyTorch kernels (off by default).
+TACRED class order, Llama-3.2-1B, DeltaHippo (Supplementary Table 17):
+
+| Order | Configuration | Final AA |
+|---|---|---|
+| Protocol order | `configs/llm/tacred.yaml` | 71.58 ± 0.49 |
+| Further order 1 | `configs/llm/tacred_order1.yaml` | 72.24 ± 2.99 |
+| Further order 2 | `configs/llm/tacred_order2.yaml` | 72.62 ± 1.41 |
+
+Results can vary with GPU type, library versions and kernel non-determinism; in continual learning small numerical
+differences are amplified across tasks, so single runs can differ by several points. Setting `PDR_DETERMINISTIC=1`
+requests deterministic PyTorch kernels (off by default). The Llama-3.2-1B TACRED and FewRel runs of Table 1 were run
+with deterministic kernels (`PDR_DETERMINISTIC=1 FLASH_ATTENTION_DETERMINISTIC=1 CUBLAS_WORKSPACE_CONFIG=:4096:8`);
+all other runs used the default kernels.
+
+The configurations here cover the DeltaHippo, Sculpting Subspaces and CODE-CL runs of Table 1, Extended Data
+Tables 1-2 and Supplementary Table 17 (every run is listed in Supplementary Tables 13-15 and 17). The ablation and
+intervention runs of the paper (Extended Data Tables 3-5 and 8-10, Supplementary Table 16) use additional switches and
+instrumentation that are not part of this repository.
 
 ## Citation
 

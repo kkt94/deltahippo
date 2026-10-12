@@ -4,6 +4,8 @@
 #   BENCH: tacred | fewrel | banking77 | clinc150
 #   MODEL: bert-base-uncased | roberta-base
 #          (read from ./hf_models/MODEL if that directory exists, otherwise from the Hugging Face Hub)
+#   SEED:  the reported runs used 42, 11 and 3
+# Learning rate 4e-5 (heads 1e-3) at batch 32, 3 epochs per task.
 set -e
 cd "$(dirname "$0")/.."
 BENCH=$1; MODEL=$2; SEED=${3:-42}

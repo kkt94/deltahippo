@@ -15,6 +15,7 @@ DATASET2TYPE = {
     'tacred_task8':'sentence-level',
     'tacred_task8_rev': 'sentence-level',
     'tacred_task8_perm1':'sentence-level',
+    'tacred_task8_perm2':'sentence-level',
     'tacred_task1':'sentence-level',      # Single task (joint upper bound)
     'clinc150_task1':'sentence-level',    # Single task (joint upper bound)
     'banking77_task1':'sentence-level',   # Single task (joint upper bound)
@@ -37,6 +38,7 @@ DATASET2MAXLEN = {
     'tacred_task8': 128,
     'tacred_task8_rev': 128,
     'tacred_task8_perm1': 128,
+    'tacred_task8_perm2': 128,
     'tacred_task1': 128,
     'clinc150_task1': 50,
     'banking77_task1': 64,

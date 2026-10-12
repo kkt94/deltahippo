@@ -989,7 +989,8 @@ class HippoIndexLite:
             beta = 1.0
         else:
             beta = float(n) / (m["n"] + float(n))
-            Uo = m["U"].to(dev)
+            Uo = kc_.pop("Uo", None)                                     # the device copy _keys kept, if any
+            Uo = m["U"].to(dev) if Uo is None else Uo
             lo = m["lam"].to(dev)
             B = kc_.get("B")                                             # the basis _keys made from the same
             if B is None:                                                # [Uo, K]: bit for bit the same QR
@@ -1050,7 +1051,13 @@ class HippoIndexLite:
             Uo = m["U"].to(dev)
             B = torch.linalg.qr(torch.cat([Uo, out["K"]], 1)).Q
             out["Ceb"] = B.t() @ Ce @ B
-            out["B"] = B.cpu()                     # _write reuses it instead of a second identical QR
+            if getattr(self, "_kdev", False) and \
+                    torch.cuda.memory_allocated() + 4 * (B.numel() + Uo.numel()) <= self._kcap:
+                # one group: the basis and the old memory stay on the device until the deferred write, as long as the
+                # device holds no more than it did with every moment of the episode present (same values, no copy)
+                out["B"], out["Uo"] = B, Uo
+            else:
+                out["B"] = B.cpu()                 # _write reuses it instead of a second identical QR
             del B
         else:
             out["Ce"] = Ce
@@ -1149,6 +1156,7 @@ class HippoIndexLite:
         self.n_eps += 1
         self.rec = {}
         groups = self._groups(model)
+        self._kdev = len(groups) == 1
         self._grp = groups[0]
         rs0_ = (torch.get_rng_state(), torch.cuda.get_rng_state_all(), _rd.getstate(), _np.random.get_state())
         if self._pat:
@@ -1169,6 +1177,7 @@ class HippoIndexLite:
         self.next_cid += len(self.cids)
         self.cids = {}
         ranks, dims = [], []
+        self._kcap = torch.cuda.memory_allocated() if torch.cuda.is_available() else 0
         g2s_ = self._sc_M is not None and self._j2p is not None
         g2d_ = []
         rs1_ = (torch.get_rng_state(), torch.cuda.get_rng_state_all(), _rd.getstate(), _np.random.get_state())
@@ -1202,7 +1211,9 @@ class HippoIndexLite:
                   continue
               if g2s_ and area in self._mem and self._mem[area]["U"].shape[1] > 0:
                   kc_ = self._keys(C, n, area)
-                  if len(groups) > 1:
+                  if len(groups) > 1 or (self._kdev and torch.cuda.memory_allocated() > self._kcap):
+                      # one group: the keys wait on the host only once the device holds more than it did with every
+                      # moment of the episode present
                       kc_ = {k_: (v_.cpu() if torch.is_tensor(v_) else v_) for k_, v_ in kc_.items()}
                   self._kc[area] = kc_
                   g2d_.append((area, n))
@@ -1239,6 +1250,16 @@ class HippoIndexLite:
                         % (int(task_id), len(ranks), sum(r / d for r, d in tr_) / len(tr_),
                            sum(r for r, _ in tr_) / len(tr_), sum(d for _, d in tr_) / len(tr_),
                            ("%d of %d" % tuple(self._mem["readout"]["U"].shape[::-1])) if "readout" in self._mem else "-", mb))
+            # (log only) memory-state summary: stored energy, residual-to-floor ratio, residual factor b, mu
+            st_ = [(float(m["lam"].double().sum()), float(m["tail"]) / max(m["U"].shape[0] - m["U"].shape[1], 1),
+                    max(float(m["floor"]), 1e-30), float(m["n"]) / max(float(m["nlast"]), 1.0)) for m in self._mem.values()]
+            if st_:
+                rf_ = sorted(ta_ / fl_ for _, ta_, fl_, _ in st_)
+                bf_ = sorted(fl_ / (fl_ + mu_ * ta_) for _, ta_, fl_, mu_ in st_)
+                logger.info("[HIPPO-LITE] after task %d: stored energy %.6g | residual-to-floor median %.4g | "
+                            "residual factor b median %.4f | mu %.3f"
+                            % (int(task_id), sum(e_ for e_, _, _, _ in st_), rf_[len(rf_) // 2], bf_[len(bf_) // 2],
+                               st_[0][3]))
         if was:
             model.train()
 

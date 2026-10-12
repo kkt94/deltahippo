@@ -19,6 +19,8 @@ dataset/
   fewrel_task8/       continual_config.json  continual_data.json
   banking77_task7/    continual_config.json  continual_data.json
   clinc150_task15/    continual_config.json  continual_data.json
+  tacred_task8_perm1/ continual_config.json  continual_data.json   (further class orders, see below)
+  tacred_task8_perm2/ continual_config.json  continual_data.json
 ```
 
 `continual_config.json` (shipped) holds the number of tasks and classes, the class names and the class order
@@ -68,6 +70,17 @@ the task.
 Split sizes (train / dev / test): TACRED 7,391 / 1,259 / 1,259 (40 relations, 8 tasks x 5);
 FewRel 33,600 / 11,200 / 11,200 (80 relations, 8 x 10); Banking77 10,003 / 3,080 / 3,080 (77 intents, 7 x 11);
 CLINC150 15,000 / 3,000 / 4,500 (150 in-scope intents, 15 x 10).
+
+### Further TACRED class orders
+
+`dataset/tacred_task8_perm1/` and `dataset/tacred_task8_perm2/` (configurations `configs/llm/tacred_order1.yaml` and
+`tacred_order2.yaml`) hold two further fixed random orders of the 40 TACRED relations. Their shipped
+`continual_config.json` assigns the class indices in the new order (`label2idx` / `idx2label`); task t holds the
+classes with indices 5t, ..., 5t + 4 (`CUR_CLASS` is the same as in `tacred_task8`). Their `continual_data.json`
+contains exactly the examples of `dataset/tacred_task8/continual_data.json`, regrouped by this order: for every task t
+and every split (`train`, `dev`, `test`), the examples of class `idx2label[5t]` come first, then those of
+`idx2label[5t + 1]`, and so on, each class keeping the order its examples have in `tacred_task8`; `label_idx_cil` is
+the class's index in `label2idx` and `label_idx_til` its position (0-4) within the task.
 
 ## Vision benchmarks
 

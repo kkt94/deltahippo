@@ -170,7 +170,14 @@ class HippoLite(BaseLearner):
         # After the last task nothing would read the memory: no sleep (the evaluation below reads only the model).
         if not bool(getattr(self.params, "hippo_off", False)):
             if int(task_id) < int(self.CL_dataset.continual_config["NUM_TASK"]) - 1:
+                off_ = self._opt_off()
                 self.hidx.sleep(task_id, self.train_loader_list[task_id], self._unwrap(self.wrap_model).model)
+                self._opt_on(off_)
+                if torch.cuda.is_available() and self.hidx.train_peak:
+                    # the sleep stays under the training peak: an overshoot is added to what later sleeps move out
+                    ov_ = torch.cuda.max_memory_allocated() - self.hidx.train_peak
+                    if ov_ > 0:
+                        self._slx = getattr(self, "_slx", 0) + ov_ + 2 * 2 ** 30
                 if torch.cuda.is_available():
                     logger.info("[HIPPO-LITE] sleep after task %d: peak allocated %.2f GB"
                                 % (int(task_id), torch.cuda.max_memory_allocated() / 1e9))
@@ -180,6 +187,50 @@ class HippoLite(BaseLearner):
         if torch.cuda.is_available():
             torch.cuda.reset_peak_memory_stats()
         super().end_task(task_id)
+
+    def _opt_off(self):
+        """Memory saving during sleep: part of the optimizer state waits in pinned host buffers while the hippocampus
+        sleeps (the sleep reads no optimizer state), so that the sleep can read the episode in one pass under the
+        training peak. The copies are exact and are moved back by _opt_on before training resumes, so the result is
+        unchanged. PDR_OPT_OFFLOAD=0 switches this off."""
+        import os as _os
+        if not torch.cuda.is_available() or _os.environ.get("PDR_OPT_OFFLOAD", "1") != "1":
+            return None
+        hx = self.hidx
+        if not hx.train_peak:
+            return None
+        # only as much as the sleep needs to read the episode once under the training peak: the grouping takes one
+        # group when allocated <= peak - 2 x (all trunk moments)
+        need = sum(4 * hx.first[a].weight.shape[1] ** 2 for a in hx.areas if a != "readout")
+        over = torch.cuda.memory_allocated() - (hx.train_peak - 2 * need - 2 ** 30) + getattr(self, "_slx", 0)
+        if over <= 0:
+            return None
+        opt = getattr(self.optimizer, "optimizer", self.optimizer)
+        if not hasattr(self, "_pin"):
+            self._pin = {}
+        out = []
+        for st in opt.state.values():
+            for k_, v_ in st.items():
+                if over > 0 and torch.is_tensor(v_) and v_.is_cuda:
+                    over -= v_.numel() * v_.element_size()
+                    key_ = (id(st), k_)
+                    h_ = self._pin.get(key_)
+                    if h_ is None or h_.shape != v_.shape or h_.dtype != v_.dtype:
+                        h_ = self._pin[key_] = torch.empty(v_.shape, dtype=v_.dtype, pin_memory=True)
+                    h_.copy_(v_, non_blocking=True)
+                    out.append((st, k_, v_.device))
+        torch.cuda.synchronize()
+        for st, k_, _ in out:
+            st[k_] = self._pin[(id(st), k_)]
+        torch.cuda.empty_cache()
+        return out
+
+    def _opt_on(self, out):
+        if not out:
+            return
+        for st, k_, dev in out:
+            st[k_] = st[k_].to(dev, non_blocking=True)
+        torch.cuda.synchronize()
 
     def train_epochs(self, task_id):
         loader = self.train_loader_list[task_id]

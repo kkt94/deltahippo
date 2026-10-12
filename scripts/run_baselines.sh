@@ -3,7 +3,9 @@
 # usage: bash scripts/run_baselines.sh METHOD BENCH MODEL [SEED]
 #   METHOD: sculpt (Sculpting Subspaces, fixed rank budget) | codecl (CODE-CL, task-agnostic K = 0)
 #   BENCH:  tacred | fewrel | banking77 | clinc150
-#   MODEL:  as in scripts/run_llm.sh
+#   MODEL:  as in scripts/run_llm.sh (reported for Qwen3-0.6B and Llama-3.2-1B)
+#   SEED:   the reported runs used 42, 11 and 3
+# Learning rate 2e-5 (the methods' own rate) at batch 32, 3 epochs per task.
 set -e
 cd "$(dirname "$0")/.."
 METHOD=$1; BENCH=$2; MODEL=$3; SEED=${4:-42}
