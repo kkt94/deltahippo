@@ -250,16 +250,7 @@ TACRED class order, Llama-3.2-1B, DeltaHippo (Supplementary Table 17):
 | Further order 1 | `configs/llm/tacred_order1.yaml` | 72.24 ± 2.99 |
 | Further order 2 | `configs/llm/tacred_order2.yaml` | 72.62 ± 1.41 |
 
-Results can vary with GPU type, library versions and kernel non-determinism; in continual learning small numerical
-differences are amplified across tasks, so single runs can differ by several points. Setting `PDR_DETERMINISTIC=1`
-requests deterministic PyTorch kernels (off by default). The Llama-3.2-1B TACRED and FewRel runs of Table 1 were run
-with deterministic kernels (`PDR_DETERMINISTIC=1 FLASH_ATTENTION_DETERMINISTIC=1 CUBLAS_WORKSPACE_CONFIG=:4096:8`);
-all other runs used the default kernels.
-
-The configurations here cover the DeltaHippo, Sculpting Subspaces and CODE-CL runs of Table 1, Extended Data
-Tables 1-2 and Supplementary Table 17 (every run is listed in Supplementary Tables 13-15 and 17). The ablation and
-intervention runs of the paper (Extended Data Tables 3-5 and 8-10, Supplementary Table 16) use additional switches and
-instrumentation that are not part of this repository.
+Every run behind these means is listed in Supplementary Tables 13-15 and 17 of the paper.
 
 ## Citation
 
